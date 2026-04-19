@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rick Waza : Duel de Niveaux</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+        body { background: #111; overflow: hidden; font-family: 'Arial Black', sans-serif; color: white; }
+        
+        #selection { position: fixed; inset: 0; background: #000; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .starter-card { background: #222; padding: 15px; border-radius: 15px; margin: 10px; text-align: center; border: 2px solid gold; }
+
+        #camera { width: 100vw; height: 100vh; position: relative; overflow: hidden; display: none; }
+        #sol { position: absolute; width: 100%; height: 100%; background-color: #1a1a1a; background-image: url('https://www.transparenttextures.com/patterns/stardust.png'); z-index: 1; }
+        
+        .torche { position: absolute; width: 20px; height: 50px; background: #5d4037; z-index: 6; box-shadow: 0 0 30px 10px orange; }
+        
+        .sauvage-container { position: absolute; display: flex; flex-direction: column; align-items: center; z-index: 5; }
+        .sauvage-img { width: 85px; }
+        .lvl-tag { background: rgba(0,0,0,0.7); color: gold; padding: 2px 5px; border-radius: 4px; font-size: 10px; border: 1px solid gold; margin-bottom: 2px; }
+
+        .equiper { position: absolute; width: 100px; z-index: 10; transform: translate(-50%, -50%); filter: drop-shadow(0 0 15px gold); }
+        #rick-waza { left: 50%; top: 50%; }
+
+        .hud { position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.8); padding: 10px; border: 2px solid gold; z-index: 100; border-radius: 10px; }
+        #joy-base { position: absolute; bottom: 40px; left: 30px; width: 90px; height: 90px; background: rgba(255,255,255,0.1); border-radius: 50%; border: 2px solid #fff; z-index: 100; }
+        #joy-stick { position: absolute; width: 35px; height: 35px; background: #fff; border-radius: 50%; top: 27px; left: 27px; }
+
+        #arene { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; display: none; flex-direction: column; align-items: center; justify-content: space-around; z-index: 500; background: #050505; }
+        .barre-hp { width: 250px; height: 20px; background: #333; border: 2px solid #fff; border-radius: 10px; overflow: hidden; }
+        .grid-atk { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 90%; }
+        .btn-atk { padding: 15px; border: none; border-radius: 8px; color: #fff; font-weight: bold; font-size: 11px; }
+        #btn-fuite { background: #7f8c8d; padding: 10px 30px; border-radius: 20px; border: none; color: white; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="selection">
+        <h2>CHOISIS TON NIVEAU DE DÉPART</h2>
+        <div style="display:flex;">
+            <div class="starter-card" onclick="start(1, 100)">LVL 100</div>
+            <div class="starter-card" onclick="start(4, 200)">LVL 200</div>
+            <div class="starter-card" onclick="start(384, 400)">LVL 400</div>
+        </div>
+    </div>
+
+    <div id="camera">
+        <div id="sol"></div>
+        <div id="world-objs"></div>
+        <div class="hud"><strong>RICK WAZA</strong><br><span id="lvl-txt">NIVEAU : 0</span></div>
+        <img id="rick-waza" class="equiper" src="">
+        <div id="joy-base"><div id="joy-stick"></div></div>
+        <button id="btn-fight" style="position:absolute; bottom:20px; right:20px; background:#e74c3c; color:white; padding:25px; border-radius:50%; border:none; display:none; z-index:100; font-weight:bold;" onpointerdown="entrerCombat()">COMBAT</button>
+
+        <div id="arene">
+            <div style="text-align:right; width:90%">
+                <span id="e-info">LVL ???</span>
+                <div class="barre-hp"><div id="e-bar" style="height:100%; background:#e74c3c; width:100%;"></div></div>
+            </div>
+            <img id="e-img" src="" width="180">
+            <div style="text-align:left; width:90%">
+                <span>TON POKÉMON</span>
+                <div class="barre-hp"><div id="p-bar" style="height:100%; background:#2ecc71; width:100%;"></div></div>
+            </div>
+            <div class="grid-atk">
+                <button class="btn-atk" style="background:#c0392b" onclick="frapper(20,40)">ATTAQUE</button>
+                <button class="btn-atk" style="background:#9b59b6" onclick="frapper(40,70)">MÉGA</button>
+                <button class="btn-atk" style="background:#f1c40f; color:000" onclick="frapper(60,100)">FORCE Z</button>
+                <button class="btn-atk" style="background:#d35400" onclick="frapper(100,200)">GIGAMAX</button>
+            </div>
+            <button id="btn-fuite" onclick="quitterCombat()">FUITE</button>
+        </div>
+    </div>
+
+    <script>
+        const sol = document.getElementById('sol');
+        const stick = document.getElementById('joy-stick');
+        const worldObjs = document.getElementById('world-objs');
+        let worldX = 0, worldY = 0, vX = 0, vY = 0;
+        let sauvages = [], pHP = 100, eHP = 100, monLvl = 0;
+
+        function start(id, lvl) {
+            monLvl = lvl;
+            document.getElementById('rick-waza').src = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
+            document.getElementById('lvl-txt').innerText = "NIVEAU : " + monLvl + " TRILLIARD";
+            document.getElementById('selection').style.display = "none";
+            document.getElementById('camera').style.display = "block";
+            for(let i=0; i<15; i++) creerTorche();
+            loop();
+        }
+
+        function creerTorche() {
+            let t = document.createElement('div'); t.className = "torche";
+            let tx = (Math.random()-0.5)*4000, ty = (Math.random()-0.5)*4000;
+            worldObjs.appendChild(t);
+        }
+
+        function spawn() {
+            if(sauvages.length > 20) return;
+            let div = document.createElement('div'); div.className = 'sauvage-container';
+            let lvlS = Math.floor(Math.random() * 600) + 50; // Niveau entre 50 et 650
+            div.innerHTML = `<span class="lvl-tag">LVL ${lvlS}</span><img class="sauvage-img" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${Math.floor(Math.random()*800)+1}.png">`;
+            let sx = -worldX + (Math.random()-0.5)*3000, sy = -worldY + (Math.random()-0.5)*3000;
+            document.getElementById('camera').appendChild(div);
+            sauvages.push({el: div, x: sx, y: sy, lvl: lvlS, img: div.querySelector('img').src});
+        }
+
+        document.addEventListener('pointermove', (e) => {
+            const b = document.getElementById('joy-base').getBoundingClientRect();
+            const dx = e.clientX-(b.left+45), dy = e.clientY-(b.top+45);
+            if(Math.hypot(dx,dy)<150){
+                let a = Math.atan2(dy,dx); vX = Math.cos(a)*20; vY = Math.sin(a)*20;
+                stick.style.transform = `translate(${Math.cos(a)*25}px, ${Math.sin(a)*25}px)`;
+            }
+        });
+        document.addEventListener('pointerup', () => { vX=0; vY=0; stick.style.transform = `translate(0,0)`; });
+
+        function loop() {
+            worldX -= vX; worldY -= vY;
+            sol.style.backgroundPosition = `${worldX}px ${worldY}px`;
+            if(Math.random()<0.04) spawn();
+            let cible = null;
+            sauvages.forEach(s => {
+                let cX = (window.innerWidth/2+s.x+worldX), cY = (window.innerHeight/2+s.y+worldY);
+                s.el.style.left = cX+'px'; s.el.style.top = cY+'px';
+                if(Math.hypot(window.innerWidth/2-cX, window.innerHeight/2-cY)<100) cible = s;
+            });
+            document.getElementById('btn-fight').style.display = cible ? "block" : "none";
+            window.cible = cible;
+            requestAnimationFrame(loop);
+        }
+
+        function entrerCombat() {
+            pHP = 100; document.getElementById('p-bar').style.width = "100%";
+            eHP = 200; eMax = 200;
+            document.getElementById('e-info').innerText = "LVL " + window.cible.lvl;
+            document.getElementById('e-bar').style.width = "100%";
+            document.getElementById('e-img').src = window.cible.img;
+            document.getElementById('arene').style.display = "flex";
+            
+            window.timerAtk = setInterval(() => {
+                // Si l'ennemi est plus fort, il fait TRÈS mal
+                let diff = window.cible.lvl / monLvl;
+                let degatsBase = Math.floor(Math.random()*10) + 5;
+                pHP -= Math.floor(degatsBase * diff);
+                document.getElementById('p-bar').style.width = pHP + "%";
+                if(pHP <= 0) { alert("Tu as perdu contre un plus fort !"); location.reload(); }
+            }, 1500);
+        }
+
+        function frapper(min, max) {
+            // Si tu es plus faible, tes dégâts sont réduits
+            let ratio = monLvl / window.cible.lvl;
+            let dmg = Math.floor((Math.random()*(max-min+1))+min) * ratio;
+            eHP -= dmg; document.getElementById('e-bar').style.width = (eHP/eMax)*100 + "%";
+            if(eHP <= 0) {
+                monLvl += 20;
+                document.getElementById('lvl-txt').innerText = "NIVEAU : "+monLvl+" TRILLIARD";
+                quitterCombat(true);
+            }
+        }
+
+        function quitterCombat(win) {
+            clearInterval(window.timerAtk);
+            document.getElementById('arene').style.display = "none";
+            if(win && window.cible) {
+                window.cible.el.remove();
+                sauvages = sauvages.filter(s => s !== window.cible);
+            }
+        }
+    </script>
+</body>
+</html>
